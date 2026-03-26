@@ -40,10 +40,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, width, height);
+                
+                const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                if (outType === 'image/jpeg') {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, width, height);
+                }
+                
                 ctx.drawImage(img, 0, 0, width, height);
-                const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                const dataUrl = canvas.toDataURL(outType, quality);
                 callback(dataUrl);
             };
             img.src = event.target.result;
@@ -3232,7 +3237,7 @@ let systemPrompt = `你扮演角色：${contact.name}。
     if (uploadAppIcon) {
         uploadAppIcon.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
-            compressImage(file, 150, 150, 0.8, (dataUrl) => {
+            compressImage(file, 512, 512, 0.9, (dataUrl) => {
                 if(dataUrl) {
                     tempAppIconBase64 = dataUrl;
                     appIconPreviewLarge.style.backgroundImage = `url('${dataUrl}')`;
@@ -3299,16 +3304,21 @@ let systemPrompt = `你扮演角色：${contact.name}。
         if (dataUrl) {
             src = `url('${dataUrl}')`;
         } else if (url) {
-            src = `url('${url}')`;
+            let parsedUrl = url;
+            if (parsedUrl.includes('raw.githubusercontent.com')) {
+                parsedUrl = parsedUrl.replace('raw.githubusercontent.com', 'cdn.jsdelivr.net/gh');
+                parsedUrl = parsedUrl.replace('/main/', '@main/');
+                parsedUrl = parsedUrl.replace('/master/', '@master/');
+            }
+            src = `url('${parsedUrl}')`;
         }
         if (!src) { return; }
-        const fontFaceRule = `@font-face { font-family: '${family}'; src: ${src}; }`;
+        const fontFaceRule = `@font-face { font-family: '${family}'; src: ${src}; font-display: swap; }`;
         fontStyleTag.innerHTML = fontFaceRule;
         document.documentElement.style.setProperty('--font-main', `'${family}', sans-serif`);
         localStorage.setItem('customFontFamily', family);
         localStorage.setItem('customFontUrl', url || '');
         localStorage.setItem('customFontDataUrl', dataUrl || '');
-        alert('Font saved successfully!');
         alert('Font saved successfully!');
         fontStatusMsg.innerText = `Font '${family}' applied successfully!`;
     };
@@ -5480,58 +5490,59 @@ let systemPrompt = `你扮演角色：${contact.name}。
         applyChatBackground: applyChatBackground,
         applyCustomCss: applyCustomCss
     };
-    
-});
 
+    // --- NEW UI IMAGE UPLOADS ---
+    const newImageTargets = [
+        { id: 'upload-capsule-bg', target: 'capsule-widget-bg', isBg: true },
+        { id: 'upload-capsule-avatar', target: 'image-target-capsule-avatar', isBg: true },
+        { id: 'upload-small-rounded', target: 'image-target-small-rounded', isBg: true },
+        { id: 'upload-polaroid-1', target: 'image-target-polaroid-1', isBg: true },
+        { id: 'upload-original-square', target: 'image-target-original-square', isBg: true },
+        { id: 'upload-polaroid-row-1', target: 'image-target-polaroid-row-1', isBg: true },
+        { id: 'upload-polaroid-row-2', target: 'image-target-polaroid-row-2', isBg: true },
+        { id: 'upload-polaroid-row-3', target: 'image-target-polaroid-row-3', isBg: true },
+        { id: 'upload-large-rounded', target: 'image-target-large-rounded', isBg: true }
+    ];
 
-// --- NEW UI IMAGE UPLOADS ---
-const newImageTargets = [
-    { id: 'upload-capsule-bg', target: 'capsule-widget-bg', isBg: true },
-    { id: 'upload-capsule-avatar', target: 'image-target-capsule-avatar', isBg: true },
-    { id: 'upload-small-rounded', target: 'image-target-small-rounded', isBg: true },
-    { id: 'upload-polaroid-1', target: 'image-target-polaroid-1', isBg: true },
-    { id: 'upload-original-square', target: 'image-target-original-square', isBg: true },
-    { id: 'upload-polaroid-row-1', target: 'image-target-polaroid-row-1', isBg: true },
-    { id: 'upload-polaroid-row-2', target: 'image-target-polaroid-row-2', isBg: true },
-    { id: 'upload-polaroid-row-3', target: 'image-target-polaroid-row-3', isBg: true },
-    { id: 'upload-large-rounded', target: 'image-target-large-rounded', isBg: true }
-];
-
-newImageTargets.forEach(item => {
-    const input = document.getElementById(item.id);
-    if(input) {
-        input.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if(file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const base64 = event.target.result;
-                    localStorage.setItem('custom_img_' + item.id, base64);
-                    applyCustomImg(item.id, item.target, base64, item.isBg);
-                };
-                reader.readAsDataURL(file);
+    function applyCustomImg(inputId, targetSelector, base64, isBg) {
+        let el = document.getElementById(targetSelector) || document.querySelector('#' + targetSelector);
+        if(el) {
+            if(isBg) {
+                el.style.backgroundImage = `url('${base64}')`;
+                const icon = el.querySelector('.empty-icon');
+                if(icon) icon.style.display = 'none';
+                el.classList.add('has-image');
+            } else {
+                el.src = base64;
+                el.classList.add('has-image');
             }
-        });
-    }
-});
-
-function applyCustomImg(inputId, targetSelector, base64, isBg) {
-    let el = document.getElementById(targetSelector) || document.querySelector('#' + targetSelector);
-    if(el) {
-        if(isBg) {
-            el.style.backgroundImage = `url(${base64})`;
-            const icon = el.querySelector('.empty-icon');
-            if(icon) icon.style.display = 'none';
-        } else {
-            el.src = base64;
         }
     }
-}
 
-// Load saved new UI images
-newImageTargets.forEach(item => {
-    const saved = localStorage.getItem('custom_img_' + item.id);
-    if(saved) {
-        applyCustomImg(item.id, item.target, saved, item.isBg);
-    }
+    newImageTargets.forEach(item => {
+        const input = document.getElementById(item.id);
+        if(input) {
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if(file) {
+                    compressImage(file, 800, 800, 0.8, (dataUrl) => {
+                        if(dataUrl) {
+                            safeSetItem('custom_img_' + item.id, dataUrl);
+                            applyCustomImg(item.id, item.target, dataUrl, item.isBg);
+                        }
+                    });
+                }
+                e.target.value = '';
+            });
+        }
+    });
+
+    // Load saved new UI images
+    newImageTargets.forEach(item => {
+        const saved = localStorage.getItem('custom_img_' + item.id);
+        if(saved) {
+            applyCustomImg(item.id, item.target, saved, item.isBg);
+        }
+    });
+
 });
